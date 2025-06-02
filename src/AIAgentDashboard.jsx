@@ -4,19 +4,20 @@ import { Button } from "./components/ui/button";
 import { Card } from "./components/ui/card";
 import AgentCard from './AgentCard';
 import AgentFlowchart from './AgentFlowchart';
-import { 
-  callAgentTask, 
-  getQueueStatus, 
-  setBatchMode, 
-  pauseRequests, 
-  resumeRequests, 
-  updateApiKey, 
-  setModel, 
+import {
+  callAgentTask,
+  getQueueStatus,
+  setBatchMode,
+  pauseRequests,
+  resumeRequests,
+  updateApiKey,
+  setModel,
   // getAvailableModels, // Not directly used, getQueueStatus provides it
-  resetApiStatus, 
-  setOfflineMode, 
+  resetApiStatus,
+  setOfflineMode,
   setOrganizationId,
-  setProvider
+  setProvider,
+  initializeApiSettings
 } from './useAgentAPI';
 import { generateId } from './utils';
 import JSZip from 'jszip';
@@ -31,7 +32,7 @@ export default function AIAgentDashboard() {
   const [flowchartNodes, setFlowchartNodes] = useState([]);
   const [flowchartEdges, setFlowchartEdges] = useState([]);
   const [showResetConfirmation, setShowResetConfirmation] = useState(false);
-  
+
   // API Modal State
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [openaiApiKeyInput, setOpenaiApiKeyInput] = useState('');
@@ -39,7 +40,7 @@ export default function AIAgentDashboard() {
   const [selectedProviderForModal, setSelectedProviderForModal] = useState('openai');
   const [apiKeySaveSuccess, setApiKeySaveSuccess] = useState(false);
   const [orgIdInput, setOrgIdInput] = useState('');
-  
+
   const [manualApproval, setManualApproval] = useState(false);
   const [pendingMessages, setPendingMessages] = useState([]);
   const [generatedCodeBlocks, setGeneratedCodeBlocks] = useState([]);
@@ -68,18 +69,14 @@ export default function AIAgentDashboard() {
 
   // Load agents and settings from localStorage on component mount
   useEffect(() => {
+    // Initialize API settings from localStorage
+    const apiSettings = initializeApiSettings();
+
     const initialStatus = getQueueStatus();
     setQueueStatus(initialStatus);
     setBatchModeEnabled(initialStatus.batchMode); // Sync local state with useAgentAPI state
     setManualApproval(localStorage.getItem('aiAgentDashboard_manualApproval') === 'true');
-    // setOfflineMode(initialStatus.offlineMode); // This should be handled by the useAgentAPI's setOfflineMode
-    // Ensure the UI reflects the actual offline mode state from the module
-    if (initialStatus.offlineMode !== queueStatus.offlineMode) {
-       // This might cause an extra render but ensures sync
-       // Directly calling setOfflineMode from useAgentAPI here might be cleaner if possible
-       // For now, let's assume getQueueStatus is the source of truth after init
-    }
-    
+
     // Load agents
     const savedAgents = localStorage.getItem('aiAgentDashboard_agents');
     if (savedAgents) {
@@ -93,7 +90,7 @@ export default function AIAgentDashboard() {
         console.error('Error loading saved agents:', error);
       }
     }
-    
+
     const savedFlowchartVisibility = localStorage.getItem('aiAgentDashboard_showFlowchart');
     if (savedFlowchartVisibility !== null) {
       setShowFlowchart(savedFlowchartVisibility === 'true');
@@ -113,11 +110,15 @@ export default function AIAgentDashboard() {
       }
     }
 
-    const hasOpenAIApiKey = localStorage.getItem('aiAgentDashboard_openaiApiKey');
-    const hasClaudeApiKey = localStorage.getItem('aiAgentDashboard_claudeApiKey');
-    if (!initialStatus.offlineMode && ((initialStatus.currentProvider === 'openai' && !hasOpenAIApiKey) || (initialStatus.currentProvider === 'anthropic' && !hasClaudeApiKey))) {
-      setSelectedProviderForModal(initialStatus.currentProvider); // Set modal to current provider
-      openApiKeyModal(); // Open modal if key for current provider is missing
+    // Show API key modal if needed
+    if (!initialStatus.offlineMode) {
+      const hasOpenAIApiKey = localStorage.getItem('aiAgentDashboard_openaiApiKey');
+      const hasClaudeApiKey = localStorage.getItem('aiAgentDashboard_claudeApiKey');
+      if ((initialStatus.currentProvider === 'openai' && !hasOpenAIApiKey) ||
+          (initialStatus.currentProvider === 'anthropic' && !hasClaudeApiKey)) {
+        setSelectedProviderForModal(initialStatus.currentProvider);
+        openApiKeyModal();
+      }
     }
   }, []); // Empty dependency array ensures this runs only once on mount
 
@@ -126,7 +127,7 @@ export default function AIAgentDashboard() {
       localStorage.setItem('aiAgentDashboard_agents', JSON.stringify(agents));
     }
   }, [agents]);
-  
+
   useEffect(() => {
     localStorage.setItem('aiAgentDashboard_showFlowchart', showFlowchart.toString());
   }, [showFlowchart]);
@@ -160,7 +161,7 @@ export default function AIAgentDashboard() {
   };
 
   const toggleOfflineMode = () => {
-    setOfflineMode(!queueStatus.offlineMode); 
+    setOfflineMode(!queueStatus.offlineMode);
   };
 
   const handleResetApiStatus = () => {
@@ -179,7 +180,7 @@ export default function AIAgentDashboard() {
     setOpenaiApiKeyInput(localStorage.getItem('aiAgentDashboard_openaiApiKey') || '');
     setClaudeApiKeyInput(localStorage.getItem('aiAgentDashboard_claudeApiKey') || '');
     setOrgIdInput(localStorage.getItem('aiAgentDashboard_orgId') || '');
-    setSelectedProviderForModal(queueStatus.currentProvider); 
+    setSelectedProviderForModal(queueStatus.currentProvider);
     setApiKeySaveSuccess(false);
     setShowApiKeyModal(true);
   };
@@ -190,36 +191,44 @@ export default function AIAgentDashboard() {
 
     if (keyToSave.trim()) {
       if (updateApiKey(selectedProviderForModal, keyToSave.trim())) {
+        // Save API key to localStorage
+        if (selectedProviderForModal === 'openai') {
+          localStorage.setItem('aiAgentDashboard_openaiApiKey', openaiApiKeyInput.trim());
+        } else if (selectedProviderForModal === 'anthropic') {
+          localStorage.setItem('aiAgentDashboard_claudeApiKey', claudeApiKeyInput.trim());
+        }
+
+        // Save organization ID if provided
+        if (orgIdInput.trim()) {
+          localStorage.setItem('aiAgentDashboard_orgId', orgIdInput.trim());
+          setOrganizationId(orgIdInput.trim());
+        }
+
         setApiKeySaveSuccess(true);
         setTimeout(() => {
           setApiKeySaveSuccess(false);
           setShowApiKeyModal(false);
-        }, 2000); 
+        }, 2000);
       } else {
         alert(`API sleutel voor ${selectedProviderForModal} is ongeldig. Controleer het formaat.`);
       }
     }
-    if (selectedProviderForModal === 'openai' && orgIdInput.trim()) {
-      setOrganizationId(orgIdInput.trim());
-    } else if (selectedProviderForModal === 'openai') {
-      setOrganizationId(''); 
-    }
   };
-  
+
   const handleProviderChangeInModal = (e) => {
     setSelectedProviderForModal(e.target.value);
   };
 
   const handleProviderChange = (e) => {
     const newProvider = e.target.value;
-    setProvider(newProvider); 
-    setQueueStatus(getQueueStatus()); 
+    setProvider(newProvider);
+    setQueueStatus(getQueueStatus());
   };
 
   const handleModelChange = (e) => {
     const newModel = e.target.value;
     setModel(newModel);
-    setQueueStatus(getQueueStatus()); 
+    setQueueStatus(getQueueStatus());
   };
 
   useEffect(() => {
@@ -244,23 +253,25 @@ export default function AIAgentDashboard() {
   }, [agents]);
 
   const addAgent = () => {
-    if (!newAgentName) return;
+    if (newAgentName.trim() === '') return;
+
     const newAgent = {
       id: generateId(),
-      name: newAgentName,
-      messages: [],
-      forwardTo: null,
+      name: newAgentName.trim(),
       task: '',
+      forwardTo: null,
+      messages: [],
       isMainAgent: agents.length === 0
     };
-    if (newAgent.isMainAgent) {
-      setAgents(prevAgents => [...prevAgents.map(a => ({ ...a, isMainAgent: false })), newAgent]);
-    } else {
-      setAgents(prevAgents => [...prevAgents, newAgent]);
-    }
+
+    const updatedAgents = [...agents, newAgent];
+    setAgents(updatedAgents);
     setNewAgentName('');
+
+    // Save agents to localStorage
+    localStorage.setItem('aiAgentDashboard_agents', JSON.stringify(updatedAgents));
   };
-  
+
   const removeAgent = (id) => {
     setAgents(prevAgents => {
       const remainingAgents = prevAgents.filter(agent => agent.id !== id);
@@ -280,7 +291,7 @@ export default function AIAgentDashboard() {
   };
 
   const setAsMainAgent = (agentId) => {
-    setAgents(prevAgents => 
+    setAgents(prevAgents =>
       prevAgents.map(agent => ({
         ...agent,
         isMainAgent: agent.id === agentId
@@ -325,46 +336,66 @@ export default function AIAgentDashboard() {
   const deliverMessage = async (agentId, from, text) => {
     const agent = agents.find(a => a.id === agentId);
     if (!agent) return;
+
     setLoadingAgentId(agentId);
+
     const augmentedPrompt = `${agent.task || 'Voer je taak uit op basis van deze input:'}
     \nInput van ${from}: ${text}
     \n\nInstructie: Als je code genereert, specificeer dan een bestandsnaam in het formaat \`bestandsnaam.ext\` direct voor het codeblok.`;
-    const aiResponse = await callAgentTask(augmentedPrompt); 
+
+    const aiResponse = await callAgentTask(augmentedPrompt);
     setLoadingAgentId(null);
+
+    // Maak sure messages array bestaat voordat we die updaten
+    const messages = agent.messages || [];
     const updatedAgent = {
       ...agent,
-      messages: [...agent.messages, { from, text }, { from: agent.name, text: aiResponse }]
+      messages: [...messages, { from, text }, { from: agent.name, text: aiResponse }]
     };
+
     setAgents(prev => prev.map(a => a.id === agentId ? updatedAgent : a));
-    const codeBlockRegex = /([\w.-]+)\s*\n?\`\`\`(\w+)?\n([\s\S]*?)\n\`\`\`|```(\w+)?\n([\s\S]*?)\n```/g; 
+
+    const codeBlockRegex = /([\w.-]+)\s*\n?\`\`\`(\w+)?\n([\s\S]*?)\n\`\`\`|```(\w+)?\n([\s\S]*?)\n```/g;
     let match;
     let newCodeBlocks = [];
+
     while ((match = codeBlockRegex.exec(aiResponse)) !== null) {
       let filename, language, code;
-      if (match[1]) { 
+      if (match[1]) {
         filename = match[1];
         language = match[2] || 'txt';
         code = match[3].trim();
-      } else { 
+      } else {
         language = match[4] || 'txt';
         code = match[5].trim();
         filename = inferFilename(text, agent.name, language, generatedCodeBlocks.length + newCodeBlocks.length);
       }
       newCodeBlocks.push({
-        id: generateId(), agentId: agent.id, agentName: agent.name,
-        filename, language, code, timestamp: Date.now()
+        id: generateId(),
+        agentId: agent.id,
+        agentName: agent.name,
+        filename,
+        language,
+        code,
+        timestamp: Date.now()
       });
     }
+
     if (newCodeBlocks.length > 0) {
       setGeneratedCodeBlocks(prev => [...prev, ...newCodeBlocks]);
     }
+
     if (agent.forwardTo && !manualApproval) {
       setTimeout(() => deliverMessage(agent.forwardTo, agent.name, aiResponse), 1500);
     } else if (agent.forwardTo && manualApproval) {
       setPendingMessages(prev => [...prev, {
-        id: generateId(), fromAgentId: agent.id, fromAgentName: agent.name,
-        toAgentId: agent.forwardTo, toAgentName: agents.find(a => a.id === agent.forwardTo)?.name || 'Onbekend',
-        message: aiResponse, timestamp: Date.now()
+        id: generateId(),
+        fromAgentId: agent.id,
+        fromAgentName: agent.name,
+        toAgentId: agent.forwardTo,
+        toAgentName: agents.find(a => a.id === agent.forwardTo)?.name || 'Onbekend',
+        message: aiResponse,
+        timestamp: Date.now()
       }]);
     }
   };
@@ -437,7 +468,7 @@ export default function AIAgentDashboard() {
     setGeneratedCodeBlocks([]);
     setShowClearCodeConfirmation(false);
   };
-  
+
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text)
       .then(() => alert('Code gekopieerd!'))
@@ -459,8 +490,8 @@ export default function AIAgentDashboard() {
             <div className={`w-3 h-3 rounded-full ${queueStatus.offlineMode ? 'bg-blue-500' : queueStatus.rateLimitHit ? 'bg-red-500' : queueStatus.currentlyProcessing ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></div>
             <span className="text-sm font-medium">API Status:</span>
             <span className="text-sm">
-              {queueStatus.offlineMode ? 'Offline modus' : 
-               queueStatus.rateLimitHit ? 'Rate limit bereikt' : 
+              {queueStatus.offlineMode ? 'Offline modus' :
+               queueStatus.rateLimitHit ? 'Rate limit bereikt' :
                queueStatus.currentlyProcessing ? 'Verwerken...' : 'Gereed'}
             </span>
           </div>
@@ -492,7 +523,7 @@ export default function AIAgentDashboard() {
             </Button>
           </div>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-2 mt-2">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Provider:</span>
@@ -631,25 +662,25 @@ export default function AIAgentDashboard() {
         <Card className="p-2 overflow-hidden">
           <h2 className="text-lg font-semibold mb-2 px-2">Agent Flowchart</h2>
           <div className="h-[400px] w-full">
-            <AgentFlowchart 
+            <AgentFlowchart
               nodes={flowchartNodes}
               edges={flowchartEdges}
             />
           </div>
         </Card>
       )}
-      
+
       <Card className="bg-gray-100 p-4 rounded-xl">
         <h2 className="text-xl font-bold mb-2">🧠 Praat tegen de hoofdagent ({mainAgentName})</h2>
         <div className="flex gap-2 mb-2">
-          <Input 
-            value={mainInput} 
-            onChange={e => setMainInput(e.target.value)} 
-            placeholder="Typ je vraag of opdracht..." 
+          <Input
+            value={mainInput}
+            onChange={e => setMainInput(e.target.value)}
+            placeholder="Typ je vraag of opdracht..."
             className="flex-grow"
           />
-          <Button 
-            onClick={sendToMainAgent} 
+          <Button
+            onClick={sendToMainAgent}
             disabled={loadingAgentId !== null || agents.length === 0 || (queueStatus.rateLimitHit && !queueStatus.offlineMode) || queueStatus.isPaused}
             className="bg-blue-500 hover:bg-blue-600"
           >
@@ -657,14 +688,14 @@ export default function AIAgentDashboard() {
           </Button>
         </div>
         <div className="bg-white rounded p-3 max-h-40 overflow-y-auto text-sm shadow-inner">
-          {agents.find(a => a.isMainAgent)?.messages.map((msg, i) => (
+          {agents.find(a => a.isMainAgent)?.messages?.map((msg, i) => (
             <div key={i} className="mb-1 pb-1 border-b border-gray-100 last:border-0">
               <strong>{msg.from}:</strong> {msg.text}
             </div>
           )) || <div className="text-gray-500">Nog geen berichten. Voeg eerst een agent toe en markeer deze als hoofdagent.</div>}
         </div>
       </Card>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {agents.map((agent, index) => (
           <AgentCard

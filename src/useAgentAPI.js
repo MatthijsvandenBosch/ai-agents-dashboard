@@ -241,10 +241,34 @@ export const resetApiStatus = () => {
 export const setOfflineMode = (enabled) => {
   offlineMode = enabled;
   queueStatus.offlineMode = enabled;
-  console.log(`Offline mode ${enabled ? 'enabled' : 'disabled'}`);
   localStorage.setItem('aiAgentDashboard_offlineMode', enabled.toString());
-  resetApiStatus();
-  return true;
+
+  if (enabled) {
+    // If we're going offline, clear any processing state
+    if (isProcessingQueue) {
+      pauseRequests();
+    }
+    cooldownUntil = 0;
+    queueStatus.cooldownRemaining = 0;
+    queueStatus.rateLimitHit = false;
+
+    console.log('Offline mode enabled, no real API calls will be made');
+  } else {
+    // If we're going online, check if we have valid API keys
+    if (currentProvider === 'openai' && !currentOpenAIApiKey) {
+      console.warn('Online mode enabled but no OpenAI API key is set');
+      queueStatus.apiKeyStatus = 'invalid';
+    } else if (currentProvider === 'anthropic' && !currentClaudeApiKey) {
+      console.warn('Online mode enabled but no Claude API key is set');
+      queueStatus.apiKeyStatus = 'invalid';
+    } else {
+      queueStatus.apiKeyStatus = 'valid'; // Assume valid until proven otherwise
+    }
+
+    console.log('Offline mode disabled, API calls will be made');
+  }
+
+  return enabled;
 };
 
 /**
@@ -679,39 +703,31 @@ export const resumeRequests = () => {
  * @returns {boolean} - Whether the API key was successfully set
  */
 export const updateApiKey = (provider, newApiKey) => {
-  if (!newApiKey || newApiKey.trim() === '') {
-    console.error(`Invalid API key provided for ${provider}`);
-    return false;
-  }
-  const keyInfo = detectApiKeyType(newApiKey.trim());
+  const keyInfo = detectApiKeyType(newApiKey);
+
   if (!keyInfo.valid) {
-    console.error(`Invalid API key format for ${provider}: ${keyInfo.message}`);
-    queueStatus.lastError = keyInfo.message;
+    console.error('Invalid API key format:', keyInfo.message);
     queueStatus.apiKeyStatus = 'invalid';
     return false;
   }
 
   if (provider === 'openai') {
-    currentOpenAIApiKey = newApiKey.trim();
-    localStorage.setItem('aiAgentDashboard_openaiApiKey', currentOpenAIApiKey);
+    currentOpenAIApiKey = newApiKey;
+    localStorage.setItem('aiAgentDashboard_openaiApiKey', newApiKey);
   } else if (provider === 'anthropic') {
-    currentClaudeApiKey = newApiKey.trim();
-    localStorage.setItem('aiAgentDashboard_claudeApiKey', currentClaudeApiKey);
+    currentClaudeApiKey = newApiKey;
+    localStorage.setItem('aiAgentDashboard_claudeApiKey', newApiKey);
   } else {
     console.error(`Unknown provider: ${provider}`);
     return false;
   }
 
-  console.log(`API key updated for ${provider} (Type: ${keyInfo.type})`);
-  localStorage.setItem(`aiAgentDashboard_apiKeyType_${provider}`, keyInfo.type);
-  
-  queueStatus.rateLimitHit = false;
-  queueStatus.apiKeyStatus = 'unknown'; // Will be re-evaluated on next call
-  cooldownUntil = 0;
-  failedApiCallsCount = 0;
-  if (queueStatus.isPaused) {
-    resumeRequests();
-  }
+  offlineMode = false;  // Automatically disable offline mode when API key is updated
+  localStorage.setItem('aiAgentDashboard_offlineMode', 'false');
+  queueStatus.offlineMode = false;
+  queueStatus.apiKeyStatus = 'valid';
+
+  console.log(`API key updated for provider: ${provider}`);
   return true;
 };
 
@@ -719,116 +735,86 @@ export const updateApiKey = (provider, newApiKey) => {
  * Initialize API settings from localStorage and environment variables
  */
 export const initializeApiSettings = () => {
-  // Load Default Provider
-  const envDefaultProvider = import.meta.env.VITE_DEFAULT_PROVIDER;
-  const storedProvider = localStorage.getItem('aiAgentDashboard_currentProvider');
-  if (envDefaultProvider && AVAILABLE_PROVIDERS[envDefaultProvider]) {
-      currentProvider = envDefaultProvider;
-      console.log(`Loaded default provider from environment variable: ${currentProvider}`);
-  } else if (storedProvider && AVAILABLE_PROVIDERS[storedProvider]) {
-      currentProvider = storedProvider;
-      console.log(`Loaded provider from localStorage: ${currentProvider}`);
-  } else {
-      currentProvider = 'openai'; // Fallback default
-      console.log(`Defaulting to provider: ${currentProvider}`);
-  }
-  localStorage.setItem('aiAgentDashboard_currentProvider', currentProvider);
-  queueStatus.currentProvider = currentProvider;
-
-  // Load OpenAI API Key
-  const envOpenAIApiKey = import.meta.env.VITE_OPENAI_API_KEY;
-  const storedOpenAIApiKey = localStorage.getItem('aiAgentDashboard_openaiApiKey');
-  if (envOpenAIApiKey && envOpenAIApiKey !== "YOUR_OPENAI_API_KEY_HERE" && envOpenAIApiKey.trim() !== "") {
-      currentOpenAIApiKey = envOpenAIApiKey;
-      // localStorage.setItem('aiAgentDashboard_openaiApiKey', envOpenAIApiKey); // Env var takes precedence for current session value
-      console.log('Loaded OpenAI API key from environment variable.');
-  } else if (storedOpenAIApiKey) {
-      currentOpenAIApiKey = storedOpenAIApiKey;
-      console.log('Loaded OpenAI API key from localStorage.');
-  }
-  if (currentOpenAIApiKey) {
-      const keyInfo = detectApiKeyType(currentOpenAIApiKey);
-      console.log(`OpenAI API Key Type: ${keyInfo.type}, Valid: ${keyInfo.valid}`);
-  }
-
-  // Load Claude API Key
-  const envClaudeApiKey = import.meta.env.VITE_CLAUDE_API_KEY;
-  const storedClaudeApiKey = localStorage.getItem('aiAgentDashboard_claudeApiKey');
-  if (envClaudeApiKey && envClaudeApiKey !== "YOUR_CLAUDE_API_KEY_HERE" && envClaudeApiKey.trim() !== "") {
-      currentClaudeApiKey = envClaudeApiKey;
-      // localStorage.setItem('aiAgentDashboard_claudeApiKey', envClaudeApiKey);
-      console.log('Loaded Claude API key from environment variable.');
-  } else if (storedClaudeApiKey) {
-      currentClaudeApiKey = storedClaudeApiKey;
-      console.log('Loaded Claude API key from localStorage.');
-  }
-  if (currentClaudeApiKey) {
-      const keyInfo = detectApiKeyType(currentClaudeApiKey);
-      console.log(`Claude API Key Type: ${keyInfo.type}, Valid: ${keyInfo.valid}`);
-  }
-
-  // Load OpenAI Organization ID
-  const envOpenAIOrgId = import.meta.env.VITE_OPENAI_ORG_ID;
-  const storedOrgId = localStorage.getItem('aiAgentDashboard_orgId');
-  if (envOpenAIOrgId && envOpenAIOrgId.trim() !== "") {
-      currentOrgId = envOpenAIOrgId;
-      // localStorage.setItem('aiAgentDashboard_orgId', envOpenAIOrgId);
-      console.log('Loaded OpenAI Organization ID from environment variable.');
-  } else if (storedOrgId) {
-      currentOrgId = storedOrgId;
-      console.log('Loaded OpenAI Organization ID from localStorage.');
-  }
-  queueStatus.hasOrgId = !!currentOrgId;
-
-  // Load Default Model (based on currentProvider)
-  const envDefaultModel = import.meta.env.VITE_DEFAULT_MODEL;
-  const storedModel = localStorage.getItem('aiAgentDashboard_currentModel');
-  if (envDefaultModel && AVAILABLE_PROVIDERS[currentProvider].models[envDefaultModel]) {
-      currentModel = envDefaultModel;
-      console.log(`Loaded default model for ${currentProvider} from environment variable: ${currentModel}`);
-  } else if (storedModel && AVAILABLE_PROVIDERS[currentProvider].models[storedModel]) {
-      currentModel = storedModel;
-      console.log(`Loaded model for ${currentProvider} from localStorage: ${currentModel}`);
-  } else {
-      currentModel = AVAILABLE_PROVIDERS[currentProvider].defaultModel;
-      console.log(`Defaulting to model for ${currentProvider}: ${currentModel}`);
-  }
-  localStorage.setItem('aiAgentDashboard_currentModel', currentModel);
-  queueStatus.currentModel = currentModel;
-  queueStatus.availableModels = AVAILABLE_PROVIDERS[currentProvider].models;
-
-  // Load batch mode setting
+  // Try to load API keys from localStorage
+  const savedOpenAIApiKey = localStorage.getItem('aiAgentDashboard_openaiApiKey');
+  const savedClaudeApiKey = localStorage.getItem('aiAgentDashboard_claudeApiKey');
+  const savedOfflineMode = localStorage.getItem('aiAgentDashboard_offlineMode');
+  const savedCurrentProvider = localStorage.getItem('aiAgentDashboard_currentProvider');
+  const savedCurrentModel = localStorage.getItem('aiAgentDashboard_currentModel');
+  const savedOrgId = localStorage.getItem('aiAgentDashboard_orgId');
   const savedBatchMode = localStorage.getItem('aiAgentDashboard_batchMode');
+
+  // Set offline mode first
+  if (savedOfflineMode !== null) {
+    offlineMode = savedOfflineMode === 'true';
+    queueStatus.offlineMode = offlineMode;
+  } else {
+    // Default to offline mode if no setting is found
+    offlineMode = true;
+    queueStatus.offlineMode = true;
+  }
+
+  // Set provider and model if saved
+  if (savedCurrentProvider && AVAILABLE_PROVIDERS[savedCurrentProvider]) {
+    currentProvider = savedCurrentProvider;
+    queueStatus.currentProvider = savedCurrentProvider;
+    queueStatus.availableModels = AVAILABLE_PROVIDERS[savedCurrentProvider].models;
+  }
+
+  // Set model if saved and valid for current provider
+  if (savedCurrentModel && AVAILABLE_PROVIDERS[currentProvider].models[savedCurrentModel]) {
+    currentModel = savedCurrentModel;
+    queueStatus.currentModel = savedCurrentModel;
+  } else {
+    // Default to provider's default model
+    currentModel = AVAILABLE_PROVIDERS[currentProvider].defaultModel;
+    queueStatus.currentModel = currentModel;
+  }
+
+  // Set API keys if saved
+  if (savedOpenAIApiKey) {
+    currentOpenAIApiKey = savedOpenAIApiKey;
+    if (!offlineMode && currentProvider === 'openai') {
+      queueStatus.apiKeyStatus = 'valid'; // Assume valid until proven otherwise
+    }
+  }
+
+  if (savedClaudeApiKey) {
+    currentClaudeApiKey = savedClaudeApiKey;
+    if (!offlineMode && currentProvider === 'anthropic') {
+      queueStatus.apiKeyStatus = 'valid'; // Assume valid until proven otherwise
+    }
+  }
+
+  // Set organization ID if saved
+  if (savedOrgId) {
+    currentOrgId = savedOrgId;
+  }
+
+  // Set batch mode if saved
   if (savedBatchMode !== null) {
     queueStatus.batchMode = savedBatchMode === 'true';
   }
-  
-  // Load paused state
-  const savedPausedState = localStorage.getItem('aiAgentDashboard_requestsPaused');
-  if (savedPausedState !== null) {
-    queueStatus.isPaused = savedPausedState === 'true';
-  }
-  
-  // Load offline mode setting - DEFAULT TO TRUE if not set
-  const savedOfflineMode = localStorage.getItem('aiAgentDashboard_offlineMode');
-  if (savedOfflineMode !== null) {
-    offlineMode = savedOfflineMode === 'true';
-  } else {
-    offlineMode = true; // Default to offline
-    localStorage.setItem('aiAgentDashboard_offlineMode', 'true');
-  }
-  queueStatus.offlineMode = offlineMode;
-  
-  console.log('API settings initialized', {
+
+  console.log('API settings initialized:',
+    'Provider:', currentProvider,
+    'Model:', currentModel,
+    'Offline mode:', offlineMode,
+    'Has OpenAI API key:', !!currentOpenAIApiKey,
+    'Has Claude API key:', !!currentClaudeApiKey,
+    'Has Org ID:', !!currentOrgId,
+    'Batch mode:', queueStatus.batchMode
+  );
+
+  return {
     provider: currentProvider,
-    hasOpenAIApiKey: !!currentOpenAIApiKey,
-    hasClaudeApiKey: !!currentClaudeApiKey,
     model: currentModel,
-    batchMode: queueStatus.batchMode,
-    isPaused: queueStatus.isPaused,
     offlineMode: offlineMode,
-    hasOrgId: !!currentOrgId
-  });
+    hasOpenAIKey: !!currentOpenAIApiKey,
+    hasClaudeKey: !!currentClaudeApiKey,
+    hasOrgId: !!currentOrgId,
+    batchMode: queueStatus.batchMode
+  };
 };
 
 /**
@@ -987,11 +973,11 @@ const executeApiCall = async (prompt, apiKey, retryCount = 0) => {
   console.log(`Using API key type: ${keyInfo.type} for provider: ${currentProvider}`);
   const MAX_RETRIES = 4;
   const RETRY_DELAYS = [3000, 7000, 15000, 30000];
-  
+
   try {
     console.log(`Sending request to ${currentProvider} API (attempt ${retryCount + 1}/${MAX_RETRIES + 1}) using model ${currentModel}`);
     updateApiCallStats('total');
-    
+
     let response;
     if (currentProvider === 'openai') {
       const headers = {
@@ -1018,7 +1004,7 @@ const executeApiCall = async (prompt, apiKey, retryCount = 0) => {
         "anthropic-version": "2023-06-01"
       };
       const debugHeaders = {...headers}; delete debugHeaders["x-api-key"]; console.log('Request headers (Anthropic):', debugHeaders);
-      
+
       response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: headers,
@@ -1077,7 +1063,7 @@ const executeApiCall = async (prompt, apiKey, retryCount = 0) => {
     queueStatus.apiKeyStatus = 'valid';
     updateApiCallStats('success');
     failedApiCallsCount = 0;
-    
+
     if (currentProvider === 'openai') {
       return responseBody.choices?.[0]?.message?.content || "[Geen antwoord van OpenAI]";
     } else if (currentProvider === 'anthropic') {
@@ -1121,23 +1107,23 @@ export const callAgentTask = (prompt) => {
     console.log('Using offline mode - generating immediate demo response');
     return Promise.resolve(generateOfflineResponse(prompt));
   }
-  
+
   const apiKeyToUse = currentProvider === 'openai' ? currentOpenAIApiKey : currentClaudeApiKey;
-  
+
   if (!apiKeyToUse) {
     console.error(`No API key found for provider ${currentProvider}. Please add your API key.`);
     return Promise.resolve(`[ERROR] No API key found for ${currentProvider}. Please add your API key.`);
   }
-  
+
   const keyInfo = detectApiKeyType(apiKeyToUse);
   if (!keyInfo.valid) {
     console.error(`Invalid API key format for ${currentProvider}: ${keyInfo.message}`);
     return Promise.resolve(`[ERROR] ${keyInfo.message}`);
   }
-  
+
   queueStatus.totalQueued++;
   queueStatus.estimatedTimeRemaining = requestQueue.length * MIN_REQUEST_INTERVAL;
-  
+
   return new Promise((resolve, reject) => {
     requestQueue.push({
       prompt,

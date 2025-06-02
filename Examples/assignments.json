@@ -1,0 +1,27 @@
+[
+  {
+    "title": "Login Form",
+    "language": "NL",
+    "prompt": "Maak een eenvoudige inlogpagina met:\n- HTML-bestand: login.html\n- CSS-bestand: login.css\n- Twee inputvelden: gebruikersnaam en wachtwoord (gebruik <label> en <input required>)\n- Een knop met de tekst 'Inloggen' die bij hover rood wordt\n- Alleen CSS-klassen gebruiken (geen ID-selectors)\n- Geen JavaScript gebruiken\n- Controleer of de HTML geldig is (<!DOCTYPE html>, <html>, <head>, <body> tags)\n- Zorg voor basale vormgeving: centering, padding, border-radius op de knop\n\nNa implementatie: Toon alleen de code in de gevraagde bestanden zonder extra tekst."
+  },
+  {
+    "title": "Newsletter Form",
+    "language": "EN",
+    "prompt": "Create a newsletter subscription form with:\n- A file named form.html and one named form.css\n- An <input> for email en a <button> to submit\n- The button must have a hover effect changing its color\n- Use only CSS classes (no ID selectors)\n- Do not use any JavaScript\n- Ensure valid HTML structure (<!DOCTYPE html>, <html>, <head>, <body>)\n- Basic styling: center the form, add margin/padding, and round the button corners\n\nAfter implementation: Return only the code in the requested files without extra commentary."
+  },
+  {
+    "title": "User API Handler",
+    "language": "EN",
+    "prompt": "Create a backend endpoint in PHP named user-api.php that:\n- Accepts a POST request with JSON data containing user information (fields: name, email)\n- Validates dat 'name' and 'email' zijn provided en non-empty\n- If valid, return JSON response {"success": true, "message": "User received"}\n- If invalid, return JSON response {"success": false, "error": "Missing name or email"}\n- Set appropriate HTTP response codes (200 for success, 400 for bad request)\n- Do not include any HTML or frontend code, only PHP\n\nAfter implementation: Return alleen user-api.php code block, nothing extra."
+  },
+  {
+    "title": "Responsive Card Component",
+    "language": "NL",
+    "prompt": "Maak een responsive kaartcomponent met:\n- HTML-bestand: card.html\n- CSS-bestand: card.css\n- De kaart bevat een afbeelding (gebruik <img src=\"plaatje.jpg\" alt=\"Beschrijving\">), een titel (<h2>) en een korte tekst (<p>)\n- Bij schermbreedte kleiner dan 600px moet de kaart full-width zijn, bij breder dan 600px moet deze 300px breed zijn\n- Gebruik flexbox of grid voor layout\n- Alleen CSS-klassen gebruiken (geen inline styles of ID’s)\n- Voeg een hover-effect toe aan de kaartcontainer (bijv. lichte schaduw)\n\nNa implementatie: Lever alleen card.html en card.css zonder extra tekst."
+  },
+  {
+    "title": "Simple To-Do API",
+    "language": "EN",
+    "prompt": "Create a simple To-Do list API using PHP with:\n- A file named todo-api.php\n- Handling for GET (list all items) en POST (add an item)\n- Store items in an in-memory array (no database) for simplicity\n- For GET: return JSON array of items\n- For POST: accept JSON {\"task\": \"Task description\"}, add to array, respond with {\"success\": true, \"tasks\": [...]}\n- Ensure proper Content-Type headers (application/json)\n- No frontend code, only PHP\n\nAfter implementation: Return only todo-api.php code block."
+  }
+]

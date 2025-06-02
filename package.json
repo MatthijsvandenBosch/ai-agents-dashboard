@@ -1,24 +1,25 @@
 {
-  "name": "ai-agent-dashboard",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "file-saver": "^2.0.5",
-    "jszip": "^3.10.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "reactflow": "^11.7.4"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.0",
-    "autoprefixer": "^10.4.14",
-    "postcss": "^8.4.27",
-    "tailwindcss": "^3.3.3",
-    "vite": "^5.2.0"
-  }
+	"name": "ai-agent-dashboard",
+	"version": "1.0.0",
+	"type": "module",
+	"scripts": {
+		"predev": "npx kill-port 5555",
+		"dev": "vite",
+		"build": "vite build",
+		"preview": "vite preview"
+	},
+	"dependencies": {
+		"file-saver": "^2.0.5",
+		"jszip": "^3.10.1",
+		"react": "^18.2.0",
+		"react-dom": "^18.2.0",
+		"reactflow": "^11.7.4"
+	},
+	"devDependencies": {
+		"@vitejs/plugin-react": "^4.3.0",
+		"autoprefixer": "^10.4.14",
+		"postcss": "^8.4.27",
+		"tailwindcss": "^3.3.3",
+		"vite": "^5.2.0"
+	}
 }
