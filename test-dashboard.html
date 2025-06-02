@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test Dashboard (OpenAI & Claude)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f9;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+            background-color: #fdfdfd;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #34495e;
+            font-size: 1.2em;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #555;
+        }
+        input[type="text"],
+        input[type="password"],
+        select,
+        textarea {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.95em;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #a9cce3;
+            cursor: not-allowed;
+        }
+        .button-secondary {
+            background-color: #7f8c8d;
+        }
+        .button-secondary:hover {
+            background-color: #607173;
+        }
+        .response-area {
+            margin-top: 20px;
+        }
+        #status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .status-success { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7;}
+        .status-error { background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a;}
+        .status-info { background-color: #e3f2fd; color: #1565c0; border: 1px solid #90caf9;}
+        #response {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .api-key-notes {
+            font-size: 0.85em;
+            color: #777;
+            margin-top: 5px;
+            padding: 8px;
+            background-color: #f9f9f9;
+            border-left: 3px solid #3498db;
+        }
+        .flex-row {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end; /* Align items to bottom for button alignment */
+        }
+        .flex-row > div {
+            flex: 1;
+        }
+         .flex-row > button {
+            flex-shrink: 0; /* Prevent button from shrinking */
+            height: 38px; /* Match input height */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>API Test Dashboard</h1>
+
+        <div class="section">
+            <h2>API Keys & Configuration</h2>
+            <p class="api-key-notes"><strong>Important:</strong> API keys are sensitive. Do not share them publicly. This page stores keys in your browser's local storage for convenience but does not send them anywhere other than the selected API provider.</p>
+            
+            <div>
+                <label for="openai-api-key">OpenAI API Key (sk-... or sk-proj-...):</label>
+                <input type="password" id="openai-api-key" placeholder="Enter your OpenAI API Key">
+            </div>
+            <div>
+                <label for="openai-org-id">OpenAI Organization ID (optional, org-...):</label>
+                <input type="text" id="openai-org-id" placeholder="Enter your OpenAI Organization ID (if any)">
+            </div>
+            <div>
+                <label for="claude-api-key">Anthropic (Claude) API Key (sk-ant-api03-...):</label>
+                <input type="password" id="claude-api-key" placeholder="Enter your Claude API Key">
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Provider & Model Selection</h2>
+            <div class="flex-row">
+                <div>
+                    <label for="api-provider">API Provider:</label>
+                    <select id="api-provider">
+                        {/* Options will be populated by JavaScript */}
+                    </select>
+                </div>
+                <div>
+                    <label for="api-model">Model:</label>
+                    <select id="api-model">
+                        {/* Options will be populated by JavaScript */}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Test Request</h2>
+            <div>
+                <label for="prompt">Test Prompt:</label>
+                <textarea id="prompt" placeholder="Enter a prompt to test the API... e.g., 'Hello, tell me a short joke.'"></textarea>
+            </div>
+            <div class="flex-row">
+                <button id="send-btn">Send Test Request</button>
+                <button id="clear-btn" class="button-secondary">Clear Response</button>
+            </div>
+        </div>
+
+        <div class="response-area section">
+            <h2>API Response</h2>
+            <div id="status">Enter your API key and prompt, then send a request.</div>
+            <pre id="response">{/* API response will be shown here */}</pre>
+        </div>
+    </div>
+
+    <script>
+        const openaiApiKeyInput = document.getElementById('openai-api-key');
+        const openaiOrgIdInput = document.getElementById('openai-org-id');
+        const claudeApiKeyInput = document.getElementById('claude-api-key');
+        const apiProviderSelect = document.getElementById('api-provider');
+        const apiModelSelect = document.getElementById('api-model');
+        const promptInput = document.getElementById('prompt');
+        const sendBtn = document.getElementById('send-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const statusEl = document.getElementById('status');
+        const responseEl = document.getElementById('response');
+
+        const availableProviders = {
+            openai: {
+                name: 'OpenAI',
+                models: {
+                    'gpt-3.5-turbo': { name: 'GPT-3.5 Turbo' },
+                    'gpt-4': { name: 'GPT-4' },
+                    'gpt-4o': { name: 'GPT-4o (Omni)' },
+                },
+                defaultModel: 'gpt-3.5-turbo',
+                apiKeyInput: openaiApiKeyInput,
+                orgIdInput: openaiOrgIdInput,
+                apiKeyLocalStorageKey: 'testDashboard_openaiApiKey',
+                orgIdLocalStorageKey: 'testDashboard_openaiOrgId'
+            },
+            anthropic: {
+                name: 'Anthropic (Claude)',
+                models: {
+                    'claude-3-haiku-20240307': { name: 'Claude 3 Haiku' },
+                    'claude-3-sonnet-20240229': { name: 'Claude 3 Sonnet' },
+                    'claude-3-opus-20240229': { name: 'Claude 3 Opus' },
+                },
+                defaultModel: 'claude-3-haiku-20240307',
+                apiKeyInput: claudeApiKeyInput,
+                apiKeyLocalStorageKey: 'testDashboard_claudeApiKey'
+            }
+        };
+
+        function populateProviderDropdown() {
+            for (const providerId in availableProviders) {
+                const option = document.createElement('option');
+                option.value = providerId;
+                option.textContent = availableProviders[providerId].name;
+                apiProviderSelect.appendChild(option);
+            }
+            // Load last selected provider or default to OpenAI
+            const savedProvider = localStorage.getItem('testDashboard_lastProvider') || 'openai';
+            apiProviderSelect.value = savedProvider;
+            populateModelDropdown(savedProvider); // Initial population
+        }
+
+        function populateModelDropdown(providerId) {
+            apiModelSelect.innerHTML = ''; // Clear existing options
+            const provider = availableProviders[providerId];
+            if (provider) {
+                for (const modelId in provider.models) {
+                    const option = document.createElement('option');
+                    option.value = modelId;
+                    option.textContent = provider.models[modelId].name;
+                    apiModelSelect.appendChild(option);
+                }
+                // Load last selected model for this provider or default
+                const savedModel = localStorage.getItem(`testDashboard_lastModel_${providerId}`) || provider.defaultModel;
+                apiModelSelect.value = savedModel;
+            }
+        }
+        
+        function loadApiKeys() {
+            openaiApiKeyInput.value = localStorage.getItem(availableProviders.openai.apiKeyLocalStorageKey) || '';
+            openaiOrgIdInput.value = localStorage.getItem(availableProviders.openai.orgIdLocalStorageKey) || '';
+            claudeApiKeyInput.value = localStorage.getItem(availableProviders.anthropic.apiKeyLocalStorageKey) || '';
+        }
+
+        function saveApiKeys() {
+            localStorage.setItem(availableProviders.openai.apiKeyLocalStorageKey, openaiApiKeyInput.value);
+            localStorage.setItem(availableProviders.openai.orgIdLocalStorageKey, openaiOrgIdInput.value);
+            localStorage.setItem(availableProviders.anthropic.apiKeyLocalStorageKey, claudeApiKeyInput.value);
+        }
+
+        apiProviderSelect.addEventListener('change', (e) => {
+            const selectedProviderId = e.target.value;
+            populateModelDropdown(selectedProviderId);
+            localStorage.setItem('testDashboard_lastProvider', selectedProviderId);
+        });
+        
+        apiModelSelect.addEventListener('change', (e) => {
+            const selectedProviderId = apiProviderSelect.value;
+            localStorage.setItem(`testDashboard_lastModel_${selectedProviderId}`, e.target.value);
+        });
+
+        sendBtn.addEventListener('click', async () => {
+            saveApiKeys(); // Save keys on send
+            const providerId = apiProviderSelect.value;
+            const modelId = apiModelSelect.value;
+            const prompt = promptInput.value.trim();
+            const providerConfig = availableProviders[providerId];
+            const apiKey = providerConfig.apiKeyInput.value.trim();
+            const orgId = providerConfig.orgIdInput ? providerConfig.orgIdInput.value.trim() : null;
+
+            if (!apiKey) {
+                statusEl.textContent = `Please enter an API key for ${providerConfig.name}.`;
+                statusEl.className = 'status-error';
+                return;
+            }
+            if (!prompt) {
+                statusEl.textContent = 'Please enter a prompt.';
+                statusEl.className = 'status-error';
+                return;
+            }
+
+            sendBtn.disabled = true;
+            statusEl.textContent = `Sending request to ${providerConfig.name} (${modelId})...`;
+            statusEl.className = 'status-info';
+            responseEl.textContent = '';
+
+            let url, headers, body;
+
+            if (providerId === 'openai') {
+                url = 'https://api.openai.com/v1/chat/completions';
+                headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                    'OpenAI-API-Version': '2023-05-15' 
+                };
+                if (orgId) {
+                    headers['OpenAI-Organization'] = orgId;
+                }
+                body = JSON.stringify({
+                    model: modelId,
+                    messages: [{ role: 'user', content: prompt }],
+                    max_tokens: 150
+                });
+            } else if (providerId === 'anthropic') {
+                url = 'https://api.anthropic.com/v1/messages';
+                headers = {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01'
+                };
+                body = JSON.stringify({
+                    model: modelId,
+                    messages: [{ role: 'user', content: prompt }],
+                    max_tokens: 1024
+                });
+            } else {
+                statusEl.textContent = 'Invalid API provider selected.';
+                statusEl.className = 'status-error';
+                sendBtn.disabled = false;
+                return;
+            }
+            
+            console.log('Request URL:', url);
+            console.log('Request Headers:', headers);
+            console.log('Request Body:', body);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: body
+                });
+
+                const data = await response.json();
+                
+                console.log('Response Status:', response.status);
+                console.log('Response Data:', data);
+
+                if (!response.ok) {
+                    const errorMessage = data.error?.message || data.error?.type || `HTTP error ${response.status}`;
+                    throw new Error(errorMessage);
+                }
+                
+                statusEl.textContent = 'API request successful!';
+                statusEl.className = 'status-success';
+                responseEl.textContent = JSON.stringify(data, null, 2);
+
+            } catch (error) {
+                statusEl.textContent = `Error: ${error.message}`;
+                statusEl.className = 'status-error';
+                responseEl.textContent = `Error details: ${error.stack || error}`;
+                console.error('API request failed:', error);
+            } finally {
+                sendBtn.disabled = false;
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            promptInput.value = '';
+            statusEl.textContent = 'Enter your API key and prompt, then send a request.';
+            statusEl.className = '';
+            responseEl.textContent = '';
+        });
+        
+        // Initial population
+        loadApiKeys();
+        populateProviderDropdown();
+
+    </script>
+</body>
+</html>
